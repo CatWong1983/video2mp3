@@ -8,7 +8,7 @@
 
 ```bash
 # 依赖
-brew install ffmpeg yt-dlp
+brew install node ffmpeg yt-dlp
 
 # 放到各 agent 的技能目录（任选一个或多个）
 git clone <this-repo> && cd video2mp3
