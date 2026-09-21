@@ -49,6 +49,14 @@ async function capture(pw, headless, waitForLoginMs) {
     args: ['--disable-blink-features=AutomationControlled'],
   });
   try {
+    // 记录页面上最后一次真实用户操作的时间（每次导航自动重装）。
+    // 用途：墙页重导航要避开用户正在扫码/拖滑块的窗口期
+    await ctx.addInitScript(() => {
+      const bump = () => { window.__v2mLastActive = Date.now(); };
+      for (const ev of ['pointerdown', 'pointermove', 'keydown', 'wheel', 'touchstart']) {
+        window.addEventListener(ev, bump, { passive: true, capture: true });
+      }
+    });
     const page = ctx.pages()[0] || (await ctx.newPage());
     page.on('response', (r) => {
       const u = r.url();
@@ -82,8 +90,10 @@ async function capture(pw, headless, waitForLoginMs) {
       // 注意必须要求 !hasVideo：info.title 是视频自己的标题，
       // 标题含"登录"等词的正常视频（如「微信登录不了怎么办」）不能误判
       const badPage = !info.hasVideo && /验证码|安全限制|不见了|登录/.test(info.title);
-      // 30 秒而非更短：扫码/滑块本身要 10-20 秒，重载太勤会把用户正在操作的二维码/滑块重置掉
-      if (badPage && Date.now() - lastNav > 30000) {
+      // 只在用户闲置 30 秒后才重载：扫码/拖滑块途中重载会把二维码/滑块组件重置掉
+      let lastActive = 0;
+      try { lastActive = await page.evaluate(() => window.__v2mLastActive || 0); } catch {}
+      if (badPage && Date.now() - Math.max(lastNav, lastActive) > 30000) {
         try { await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 }); } catch {}
         lastNav = Date.now();
         continue;
