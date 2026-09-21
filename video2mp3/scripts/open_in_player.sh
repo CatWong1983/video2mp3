@@ -50,7 +50,12 @@ if [ "$ACTION" = "play" ]; then
   fi
 else
   # open 模式：不清队列，激活窗口 + 通知
-  osascript -e "display notification \"$(basename "$MP3")\" with title \"video2mp3 转换完成\" sound name \"Glass\"" 2>/dev/null || true
+  # 文件名走 argv 传递，不拼进 AppleScript 源码（防引号注入；写坏的文件名只会静默不弹通知）
+  osascript - "$(basename "$MP3")" <<'APPLESCRIPT' 2>/dev/null || true
+on run argv
+  display notification (item 1 of argv) with title "video2mp3 转换完成" sound name "Glass"
+end run
+APPLESCRIPT
   if [ -n "$PLAYER" ]; then
     echo ">> 激活 ${PLAYER}（不替换播放队列；歌曲已存入曲库目录，在「本地歌曲」中播放）"
     open -a "$PLAYER"
