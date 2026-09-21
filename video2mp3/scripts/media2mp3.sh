@@ -9,7 +9,7 @@
 #
 # Env:
 #   VIDEO2MP3_DIR     默认输出目录 (default: ~/Music/video2mp3)
-#   VIDEO2MP3_ACTION  open(默认,不动播放队列) / play(自动播放,会替换队列) / none(只保存)
+#   VIDEO2MP3_ACTION  play(默认,自动播放) / open(只激活窗口,不动播放队列) / none(只保存)
 #   VIDEO2MP3_PLAYER  播放器 App 名 ("QQMusic" / "NetEase Cloud Music")
 
 set -euo pipefail
@@ -23,13 +23,32 @@ mkdir -p "$OUTDIR"
 
 command -v ffmpeg >/dev/null || { echo "ERROR: 需要 ffmpeg (brew install ffmpeg)" >&2; exit 1; }
 
-# 文件名清洗：去掉 / \ : 等非法字符
-SAFE=$(printf '%s - %s' "$ARTIST" "$TITLE" | tr '/\\:*?"<>|' '--------' | cut -c1-120)
-TMP=$(mktemp -t video2mp3).bin
+UA="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+
+# 文件名清洗：去掉 / \ : 等非法字符。${var:0:120} 按字符截断（需 UTF-8 locale），
+# 不要用 cut -c——C locale 下它按字节切，会把中文切成乱码
+export LC_ALL="${LC_ALL:-en_US.UTF-8}"
+SAFE=$(printf '%s - %s' "$ARTIST" "$TITLE" | tr '/\\:*?"<>|' '--------')
+SAFE=${SAFE:0:120}
+
+TMP=$(mktemp -t video2mp3)
 trap 'rm -f "$TMP"' EXIT
 
+# 抖音 CDN 会中途断流（curl 18 partial file）。先 HEAD 拿 Content-Length，
+# curl -C - 断点续传重试，最后校验字节数，残缺文件绝不交给 ffmpeg
 echo ">> 下载媒体流..."
-curl -sfS -H "Referer: $REFERER" -H "User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36" -o "$TMP" "$MEDIA_URL"
+EXPECTED=$(curl -sfSI -H "Referer: $REFERER" -H "User-Agent: $UA" "$MEDIA_URL" 2>/dev/null | tr -d '\r' | awk 'tolower($1)=="content-length:" {print $2}' | tail -1 || true)
+for i in 1 2 3 4 5 6 7 8; do
+  curl -sfS -C - -H "Referer: $REFERER" -H "User-Agent: $UA" -o "$TMP" "$MEDIA_URL" && break
+  echo ">> 连接中断，断点续传 ($i/8)..." >&2
+  sleep 1
+done
+[ -s "$TMP" ] || { echo "ERROR: 下载失败" >&2; exit 1; }
+SIZE=$(stat -f%z "$TMP" 2>/dev/null || stat -c%s "$TMP")
+if [ -n "${EXPECTED:-}" ] && [ "$SIZE" != "$EXPECTED" ]; then
+  echo "ERROR: 下载不完整（$SIZE/$EXPECTED 字节），重试次数已用尽" >&2
+  exit 1
+fi
 
 MP3="$OUTDIR/$SAFE.mp3"
 echo ">> 转码 mp3: $MP3"
@@ -38,5 +57,5 @@ ffmpeg -y -loglevel error -i "$TMP" -vn -codec:a libmp3lame -q:a 2 \
 
 echo ">> MP3: $MP3"
 
-# 交给本地音乐 App（默认不动播放队列，详见 open_in_player.sh 头注释）
+# 交给本地音乐 App（默认自动播放，详见 open_in_player.sh 头注释）
 "$(dirname "$0")/open_in_player.sh" "$MP3"

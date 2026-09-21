@@ -6,7 +6,7 @@
 #
 # Env overrides:
 #   VIDEO2MP3_DIR     默认输出目录 (default: ~/Music/video2mp3)
-#   VIDEO2MP3_ACTION  open(默认,不动播放队列) / play(自动播放,会替换队列) / none(只保存)
+#   VIDEO2MP3_ACTION  play(默认,自动播放) / open(只激活窗口,不动播放队列) / none(只保存)
 #   VIDEO2MP3_PLAYER  指定播放器 App 名，如 "QQMusic" / "NetEase Cloud Music"
 
 set -euo pipefail
@@ -51,5 +51,5 @@ if [ -z "$FILEPATH" ] || [ ! -f "$FILEPATH" ]; then
 fi
 echo ">> MP3: $FILEPATH"
 
-# 交给本地音乐 App（默认不动播放队列，详见 open_in_player.sh 头注释）
+# 交给本地音乐 App（默认自动播放，详见 open_in_player.sh 头注释）
 "$(dirname "$0")/open_in_player.sh" "$FILEPATH"
