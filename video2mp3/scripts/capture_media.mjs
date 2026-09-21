@@ -82,7 +82,8 @@ async function capture(pw, headless, waitForLoginMs) {
       // 注意必须要求 !hasVideo：info.title 是视频自己的标题，
       // 标题含"登录"等词的正常视频（如「微信登录不了怎么办」）不能误判
       const badPage = !info.hasVideo && /验证码|安全限制|不见了|登录/.test(info.title);
-      if (badPage && Date.now() - lastNav > 15000) {
+      // 30 秒而非更短：扫码/滑块本身要 10-20 秒，重载太勤会把用户正在操作的二维码/滑块重置掉
+      if (badPage && Date.now() - lastNav > 30000) {
         try { await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 }); } catch {}
         lastNav = Date.now();
         continue;
