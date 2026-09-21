@@ -34,13 +34,19 @@ if [ "$PLAYER" = "auto" ]; then
 fi
 
 # auto 智能模式：QQ音乐正在运行时 open -a 会用新歌替换用户排好的播放队列，
-# 降级为 open 保队列；QQ音乐没在跑则队列本来就空，直接 play（自动播放+自动入库）
+# 降级为 open（弹窗让用户当场决定：直接播 or 稍后听）；QQ音乐没在跑则队列本来就空，直接 play
 if [ "$ACTION" = "auto" ]; then
   if [ "$PLAYER" = "QQMusic" ] && pgrep -f "/Applications/QQMusic.app" >/dev/null 2>&1; then
     ACTION="open"
   else
     ACTION="play"
   fi
+fi
+
+# QQ音乐：确保输出目录已写入「本地歌曲」自动扫描配置（幂等；首次配置会重启一次 QQ音乐，
+# 之后新歌落盘即出现在本地歌曲，用户零手动设置）
+if [ "$PLAYER" = "QQMusic" ]; then
+  "$(dirname "$0")/setup_qqmusic_monitor.sh" "$(dirname "$MP3")" || true
 fi
 
 # 网易云 open 文件不清播放队列（实测），open 模式直接升级为 play
@@ -62,10 +68,13 @@ if [ "$ACTION" = "play" ]; then
   fi
 else
   # open 模式：不清队列，激活窗口 + 通知
-  # 文件名走 argv 传递，不拼进 AppleScript 源码（防引号注入；写坏的文件名只会静默不弹通知）
-  osascript - "$(basename "$MP3")" <<'APPLESCRIPT' 2>/dev/null || true
+  # 通知以播放器名义发（兜底 Finder）：直接 osascript 会以 "Script Editor" 名义弹，
+  # 其他用户没给它开通知权限就根本看不到。文件名和 App 名都走 argv，不拼进源码
+  NOTIFY_VIA="$PLAYER"
+  [ -n "$NOTIFY_VIA" ] || NOTIFY_VIA="Finder"
+  osascript - "$NOTIFY_VIA" "$(basename "$MP3")" <<'APPLESCRIPT' 2>/dev/null || true
 on run argv
-  display notification (item 1 of argv) with title "video2mp3 转换完成" sound name "Glass"
+  tell application (item 1 of argv) to display notification (item 2 of argv) with title "video2mp3 转换完成" sound name "Glass"
 end run
 APPLESCRIPT
   if [ -n "$PLAYER" ]; then
