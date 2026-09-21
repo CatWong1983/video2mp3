@@ -6,11 +6,11 @@
 # Env:
 #   VIDEO2MP3_ACTION  auto(默认) | play | open | none
 #       auto — 智能模式：QQ音乐没在运行 → play（队列本来是空的，自动播放+自动入库）；
-#              QQ音乐正在运行 → open（你排的播放队列原样保留，只激活窗口+通知，
-#              新歌在「本地歌曲」里点一下就听）。网易云两种情形都不清队列，总是 play
+#              QQ音乐正在运行 → open（弹窗让你选：直接播=替换队列 / 稍后听=进「本地歌曲」）。
+#              网易云两种情形都不清队列，总是 play
 #       play — 总是自动播放。注意：QQ音乐会用这首歌替换当前播放队列
-#       open — 总是只激活窗口+通知，不动播放队列
-#              （QQ音乐此模式不会自动导入曲库，需手动添加文件夹，见 SKILL.md）
+#       open — 总是不动播放队列（QQ音乐会弹窗让你当场决定；输出目录由
+#              setup_qqmusic_monitor.sh 自动写入「本地歌曲」监控，无需手动配置）
 #       none — 什么都不做，只保存文件
 #   VIDEO2MP3_PLAYER  强制指定 App 名，如 "QQMusic" / "NetEase Cloud Music"
 
@@ -67,9 +67,36 @@ if [ "$ACTION" = "play" ]; then
     open "$MP3"
   fi
 else
-  # open 模式：不清队列，激活窗口 + 通知
+  # open 模式：不清队列。
+  # QQ音乐：弹窗让用户当场决定（闭环，不再静默）——「直接播放」替换队列立刻听；
+  # 「稍后听」/45 秒无操作/弹窗失败 → 不抢焦点，只发通知，歌已在「本地歌曲」等用户点
+  if [ "$PLAYER" = "QQMusic" ]; then
+    CHOICE=$(osascript - "$(basename "$MP3" .mp3)" <<'APPLESCRIPT' 2>/dev/null || echo "later"
+on run argv
+  try
+    set r to display dialog "转换完成：" & item 1 of argv & return & return & "QQ音乐正在播放你队列里的歌。两个选择：" & return & return & "▶ 直接播放 —— 马上听这首，但当前队列会被清空替换成它" & return & "♡ 稍后听 —— 不打断现在的播放；这首已放进「本地歌曲」，随时可点" buttons {"稍后听", "直接播放"} default button "稍后听" giving up after 45
+    if gave up of r then
+      return "later"
+    else
+      return button returned of r
+    end if
+  on error
+    return "later"
+  end try
+end run
+APPLESCRIPT
+)
+    if [ "$CHOICE" = "直接播放" ]; then
+      echo ">> 已切换：QQ音乐正在播放（当前队列被这首歌替换）"
+      open -a QQMusic "$MP3"
+      exit 0
+    fi
+    echo ">> 歌已在 QQ音乐「本地歌曲」（监控目录自动导入），当前队列未动，想听点开即可"
+  else
+    echo ">> 激活 ${PLAYER:-系统}（不替换播放队列）"
+  fi
   # 通知以播放器名义发（兜底 Finder）：直接 osascript 会以 "Script Editor" 名义弹，
-  # 其他用户没给它开通知权限就根本看不到。文件名和 App 名都走 argv，不拼进源码
+  # 用户没给它开通知权限就根本看不到。文件名和 App 名都走 argv，不拼进源码
   NOTIFY_VIA="$PLAYER"
   [ -n "$NOTIFY_VIA" ] || NOTIFY_VIA="Finder"
   osascript - "$NOTIFY_VIA" "$(basename "$MP3")" <<'APPLESCRIPT' 2>/dev/null || true
@@ -77,10 +104,7 @@ on run argv
   tell application (item 1 of argv) to display notification (item 2 of argv) with title "video2mp3 转换完成" sound name "Glass"
 end run
 APPLESCRIPT
-  if [ -n "$PLAYER" ]; then
-    echo ">> 激活 ${PLAYER}（不替换播放队列；歌曲已存入曲库目录，在「本地歌曲」中播放）"
-    open -a "$PLAYER"
-  else
-    open -R "$MP3"
+  if [ "$PLAYER" != "QQMusic" ]; then
+    if [ -n "$PLAYER" ]; then open -a "$PLAYER"; else open -R "$MP3"; fi
   fi
 fi

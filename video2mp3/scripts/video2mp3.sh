@@ -17,6 +17,12 @@ mkdir -p "$OUTDIR"
 
 # 从分享文本中提取第一个 URL（抖音/小红书分享文本都内嵌链接）
 URL=$(printf '%s' "$INPUT" | grep -oE 'https?://[^[:space:]"'"'"'<>，。)）]+' | head -n1 || true)
+
+# B 站链接 / 裸 BV 号：走官方 API 专用脚本（yt-dlp 对 B 站会 412，见 bilibili2mp3.sh 头注释）
+if [[ "${URL:-}$INPUT" =~ bilibili\.com|b23\.tv ]] || printf '%s' "$INPUT" | grep -qE 'BV[0-9A-Za-z]{10}'; then
+  exec "$(dirname "$0")/bilibili2mp3.sh" "$INPUT" "$OUTDIR"
+fi
+
 if [ -z "${URL:-}" ]; then
   echo "ERROR: 输入中没有找到 URL: $INPUT" >&2
   exit 1
