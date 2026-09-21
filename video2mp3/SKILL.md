@@ -85,6 +85,7 @@ scripts/media2mp3.sh '<mediaUrl>' '<referer>' '<title>' '<author>'
 - 流地址带签名会过期，抓到后立刻下载
 - **抖音 CDN 会中途断流**（curl 18 partial file）——media2mp3.sh 已处理：HEAD 拿 Content-Length → `curl -C -` 断点续传（最多 8 次）→ 校验字节数，不完整明确报错。不要简化掉这段逻辑，残缺文件交给 ffmpeg 会产出音频缺尾的 mp3 且不报错
 - 部分视频（如直播录屏类较长视频）无头模式抓不到流，脚本自动弹有头浏览器，扫码登录后即过，属正常流程
+- **"验证码中间页" = 抖音风控**（同一 profile/IP 高频抓取触发滑块）。恢复方式：有头窗口里手动过一次滑块，脚本每 15 秒自动重新导航到目标页，过完即继续；仍被挡可删除 `~/.video2mp3/browser-profile` 重置，或 CDP 接管用户日常 Chrome。避免短时间对同一 profile 高频抓取
 - 抖音页面可能重定向到无关视频：核对 `page.url()` 里的 video ID 与目标一致再取流
 - **小红书笔记 URL 必须带 `xsec_token` 参数**（App 分享链接自带）；裸 `/explore/<id>` 即使已登录也会 404（error_code=300031）
 - 笔记是图文（无 `<video>` 元素）时没有音频可提取，告知用户

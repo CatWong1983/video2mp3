@@ -38,11 +38,15 @@ trap 'rm -f "$TMP"' EXIT
 # curl -C - 断点续传重试，最后校验字节数，残缺文件绝不交给 ffmpeg
 echo ">> 下载媒体流..."
 EXPECTED=$(curl -sfSI -H "Referer: $REFERER" -H "User-Agent: $UA" "$MEDIA_URL" 2>/dev/null | tr -d '\r' | awk 'tolower($1)=="content-length:" {print $2}' | tail -1 || true)
+ok=0
 for i in 1 2 3 4 5 6 7 8; do
-  curl -sfS -C - -H "Referer: $REFERER" -H "User-Agent: $UA" -o "$TMP" "$MEDIA_URL" && break
+  if curl -sfS -C - -H "Referer: $REFERER" -H "User-Agent: $UA" -o "$TMP" "$MEDIA_URL"; then ok=1; break; fi
   echo ">> 连接中断，断点续传 ($i/8)..." >&2
   sleep 1
 done
+# curl 退出码为 0 才算完整传完；8 次全断时即使留有部分内容也报错，
+# 避免 HEAD 没返回 Content-Length 时残缺文件静默进入 ffmpeg（产出缺尾 mp3）
+[ "$ok" = 1 ] || { echo "ERROR: 下载失败，重试 8 次均被 CDN 中断" >&2; exit 1; }
 [ -s "$TMP" ] || { echo "ERROR: 下载失败" >&2; exit 1; }
 SIZE=$(stat -f%z "$TMP" 2>/dev/null || stat -c%s "$TMP")
 if [ -n "${EXPECTED:-}" ] && [ "$SIZE" != "$EXPECTED" ]; then
