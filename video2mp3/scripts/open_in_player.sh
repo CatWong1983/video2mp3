@@ -30,9 +30,18 @@ if [ "$PLAYER" = "auto" ]; then
   else PLAYER=""; fi
 fi
 
+# 网易云 open 文件不清播放队列（实测），open 模式直接升级为 play
+if [ "$ACTION" = "open" ] && [[ "$PLAYER" == *NetEase* || "$PLAYER" == *Netease* ]]; then
+  ACTION="play"
+fi
+
 if [ "$ACTION" = "play" ]; then
   if [ -n "$PLAYER" ]; then
-    echo ">> 用 $PLAYER 播放（注意：会替换当前播放队列）..."
+    if [ "$PLAYER" = "QQMusic" ]; then
+      echo ">> 用 QQMusic 播放（注意：会替换当前播放队列）..."
+    else
+      echo ">> 用 ${PLAYER} 播放..."
+    fi
     open -a "$PLAYER" "$MP3"
   else
     echo ">> 未检测到 QQ 音乐/网易云，用系统默认播放器打开"

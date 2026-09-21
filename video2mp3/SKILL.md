@@ -18,8 +18,8 @@ description: Use when the user shares a Douyin (抖音) or Xiaohongshu (小红�
 
 | 值 | 行为 |
 |---|---|
-| `open`（默认） | 只激活音乐 App 窗口 + 系统通知，**不动当前播放队列**；用户在「本地歌曲」里点播 |
-| `play` | 自动播放。注意：QQ音乐会用这首歌**替换当前播放队列** |
+| `open`（默认） | QQ音乐：只激活窗口 + 系统通知，**不动当前播放队列**，用户在「本地歌曲」里点播。网易云：实测 open 不清队列，自动升级为 play 直接播放 |
+| `play` | 自动播放。注意：QQ音乐会用这首歌**替换当前播放队列**；网易云队列安全 |
 | `none` | 只保存文件 |
 
 ## 流程
@@ -74,7 +74,7 @@ scripts/media2mp3.sh '<mediaUrl>' '<referer>' '<title>' '<author>'
 ## 常见坑
 
 - **`open -a QQMusic file.mp3` 会用该文件替换当前播放队列**（QQ音乐无 AppleScript 字典、无追加队列接口，UI 元素匿名无法可靠自动化）。所以默认 ACTION=open 只激活窗口；只有用户明确要"直接播放"时才用 play
-- **网易云音乐路径未实测**（开发机上未安装）：open 时的播放/队列行为、本地歌曲目录设置方式均未验证，结论仅适用于 QQ音乐
+- **网易云音乐（已实测）**：`open -a NeteaseMusic file.mp3` 会自动播放，且**不清播放队列**（实测放完外部文件后自动继续队列下一首）；但**不会把文件导入「本地音乐」库**（open 后本地曲库表仍为空），入库只能在 app 内手动添加文件夹（UI 不可自动化）。即：网易云下 ACTION=play 是队列安全的，但歌不进库
 - **aria2c/wget 下 CDN 会 403**——必须 curl + Referer 头（media2mp3.sh 已处理）
 - 流地址带签名会过期，抓到后立刻下载
 - 抖音页面可能重定向到无关视频：核对 `page.url()` 里的 video ID 与目标一致再取流
