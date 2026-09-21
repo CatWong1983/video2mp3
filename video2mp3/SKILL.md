@@ -74,6 +74,7 @@ scripts/media2mp3.sh '<mediaUrl>' '<referer>' '<title>' '<author>'
 ## 常见坑
 
 - **`open -a QQMusic file.mp3` 会用该文件替换当前播放队列**（QQ音乐无 AppleScript 字典、无追加队列接口，UI 元素匿名无法可靠自动化）。所以默认 ACTION=open 只激活窗口；只有用户明确要"直接播放"时才用 play
+- **网易云音乐路径未实测**（开发机上未安装）：open 时的播放/队列行为、本地歌曲目录设置方式均未验证，结论仅适用于 QQ音乐
 - **aria2c/wget 下 CDN 会 403**——必须 curl + Referer 头（media2mp3.sh 已处理）
 - 流地址带签名会过期，抓到后立刻下载
 - 抖音页面可能重定向到无关视频：核对 `page.url()` 里的 video ID 与目标一致再取流
