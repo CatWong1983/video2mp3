@@ -11,8 +11,14 @@ description: Use when the user shares a Douyin (抖音) or Xiaohongshu (小红�
 
 - macOS；`node`(18+) 和 `ffmpeg` 必需，`yt-dlp` 可选（`brew install node ffmpeg yt-dlp`）
 - 播放器：检测顺序 QQ音乐 → 网易云 → 系统默认。可用 `VIDEO2MP3_PLAYER=<App名>` 覆盖
-- 输出目录默认 `~/Music/video2mp3`，可用 `VIDEO2MP3_DIR` 覆盖
-- **一次性设置**：在 QQ音乐「本地歌曲」（或「本地与下载」）里选「手动添加 / 添加本地歌曲文件夹」，把 `~/Music/video2mp3` 加进去。之后转换的歌自动进曲库
+- 输出目录默认 `~/Music/video2mp3`，可用 `VIDEO2MP3_DIR` 覆盖。**无论用哪个播放器，转换的 mp3 都会保存在这里**
+
+## 曲库入库（按播放器，选做）
+
+文件始终在输出目录里，不入库也不影响"转换完立刻听"。只有想在 app 的「本地音乐」里长期管理时才需要：
+
+- **QQ音乐**：默认 open 模式不会自动导入。想进「本地歌曲」→ 一次性设置：QQ音乐「本地歌曲」→「手动添加 / 添加本地歌曲文件夹」→ 选 `~/Music/video2mp3`（建议做）
+- **网易云**：临时听什么都不用做（open 模式自动直接播放）。想入库 → 在网易云「本地音乐」里手动添加 `~/Music/video2mp3` 文件夹（纯临时听可跳过）
 
 ## 播放行为（VIDEO2MP3_ACTION）
 
