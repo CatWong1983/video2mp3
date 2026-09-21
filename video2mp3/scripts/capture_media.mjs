@@ -58,17 +58,29 @@ async function capture(pw, headless, waitForLoginMs) {
       }
     });
     const page = ctx.pages()[0] || (await ctx.newPage());
+    const audioUrls = new Set();  // MSE 音轨分片（抖音音视频分离播放）
+    const videoUrls = new Set();  // MSE 视频轨分片（只作兜底：直接转会出静音 mp3）
     page.on('response', (r) => {
       const u = r.url();
       if (isAsset(u)) return;
-      if (r.request().resourceType() === 'media') goodUrls.add(u);
-      else if (/\.(mp3|m4a|mp4)(\?|$)/.test(u)) weakUrls.add(u);
+      const rt = r.request().resourceType();
+      if (rt === 'media') { goodUrls.add(u); return; }
+      // 抖音部分视频走 MSE（<video> 挂 blob:，fetch 分片拉流），URL 形如
+      // .../media-audio-und-mp4a/?...&mime_type=video_mp4 —— resourceType 是 fetch 不是 media
+      if (/\/media-audio-[a-z0-9]+/i.test(u)) { audioUrls.add(u); return; }
+      if (/\/media-video-[a-z0-9]+/i.test(u) || /[?&]mime_type=video_mp4/.test(u)) { videoUrls.add(u); return; }
+      if (/\.(mp3|m4a|mp4)(\?|$)/.test(u)) weakUrls.add(u);
     });
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 });
+    try {
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 });
+    } catch {
+      console.error('>> 首次加载超时/失败，进入轮询等待（可能是网络抖动或风控）');
+    }
     let lastNav = Date.now();
 
     const deadline = Date.now() + waitForLoginMs;
-    let info = { title: '', author: '', hasVideo: false, currentSrc: '' };
+    let lastDiag = 0;
+    let info = { title: '', author: '', hasVideo: false, currentSrc: '', paused: true };
     while (Date.now() < deadline) {
       await page.waitForTimeout(3000);
       info = await page.evaluate(() => {
@@ -81,10 +93,16 @@ async function capture(pw, headless, waitForLoginMs) {
           author: authorEl ? authorEl.innerText.trim() : '',
           hasVideo: !!v,
           currentSrc: v ? v.currentSrc : '',
+          paused: v ? v.paused : true,
         };
       });
       const directSrc = info.currentSrc && !info.currentSrc.startsWith('blob:') && !isAsset(info.currentSrc);
-      if (goodUrls.size > 0 || directSrc) break;
+      if (goodUrls.size > 0 || audioUrls.size > 0 || directSrc) break;
+      // 页面在播但一直没匹配到可用音轨：打诊断（MSE 形态再变时能有线索，不再静默卡死）
+      if (info.hasVideo && !info.paused && Date.now() - lastDiag > 15000) {
+        console.error(`>> 页面在播放但未匹配到音频流（疑似未知 MSE 形态）。候选: media=${goodUrls.size} audio=${audioUrls.size} video=${videoUrls.size} weak=${weakUrls.size}`);
+        lastDiag = Date.now();
+      }
       // 验证码/登录/安全限制页：用户在有头窗口里操作后，定期重新导航到目标页
       // （否则用户登录/过验证码后页面仍停在原处，永远轮询不到视频）
       // 注意必须要求 !hasVideo：info.title 是视频自己的标题，
@@ -103,7 +121,9 @@ async function capture(pw, headless, waitForLoginMs) {
     }
     const directSrc = info.currentSrc && !info.currentSrc.startsWith('blob:') && !isAsset(info.currentSrc)
       ? info.currentSrc : '';
-    const mediaUrl = [...goodUrls][0] || directSrc || [...weakUrls][0] || '';
+    // 音轨最优先（MSE 常先拉一小段探测，取靠后的更可能是完整流）；
+    // videoUrls 仅兜底——media2mp3.sh 有音频流校验，抓到纯视频轨会明确报错
+    const mediaUrl = [...audioUrls].at(-1) || [...goodUrls][0] || directSrc || [...videoUrls].at(-1) || [...weakUrls][0] || '';
     return { mediaUrl, title: info.title, author: info.author, hasVideo: info.hasVideo };
   } finally {
     await ctx.close();

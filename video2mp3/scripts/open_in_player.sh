@@ -4,10 +4,12 @@
 # Usage: open_in_player.sh <file.mp3>
 #
 # Env:
-#   VIDEO2MP3_ACTION  play(默认) | open | none
-#       play — 自动播放该文件。QQ音乐会用这首歌替换当前播放队列，
-#              但文件会自动导入「本地歌曲」，无需任何手动设置
-#       open — 只激活音乐 App 窗口并发通知，不动当前播放队列
+#   VIDEO2MP3_ACTION  auto(默认) | play | open | none
+#       auto — 智能模式：QQ音乐没在运行 → play（队列本来是空的，自动播放+自动入库）；
+#              QQ音乐正在运行 → open（你排的播放队列原样保留，只激活窗口+通知，
+#              新歌在「本地歌曲」里点一下就听）。网易云两种情形都不清队列，总是 play
+#       play — 总是自动播放。注意：QQ音乐会用这首歌替换当前播放队列
+#       open — 总是只激活窗口+通知，不动播放队列
 #              （QQ音乐此模式不会自动导入曲库，需手动添加文件夹，见 SKILL.md）
 #       none — 什么都不做，只保存文件
 #   VIDEO2MP3_PLAYER  强制指定 App 名，如 "QQMusic" / "NetEase Cloud Music"
@@ -15,7 +17,7 @@
 set -euo pipefail
 
 MP3="${1:?Usage: open_in_player.sh <file.mp3>}"
-ACTION="${VIDEO2MP3_ACTION:-play}"
+ACTION="${VIDEO2MP3_ACTION:-auto}"
 PLAYER="${VIDEO2MP3_PLAYER:-auto}"
 [ "$PLAYER" = "none" ] && ACTION="none"  # 兼容旧的 VIDEO2MP3_PLAYER=none 用法
 
@@ -29,6 +31,16 @@ if [ "$PLAYER" = "auto" ]; then
   elif [ -d "/Applications/NetEase Cloud Music.app" ]; then PLAYER="NetEase Cloud Music"
   elif [ -d "/Applications/NeteaseMusic.app" ]; then PLAYER="NeteaseMusic"
   else PLAYER=""; fi
+fi
+
+# auto 智能模式：QQ音乐正在运行时 open -a 会用新歌替换用户排好的播放队列，
+# 降级为 open 保队列；QQ音乐没在跑则队列本来就空，直接 play（自动播放+自动入库）
+if [ "$ACTION" = "auto" ]; then
+  if [ "$PLAYER" = "QQMusic" ] && pgrep -f "/Applications/QQMusic.app" >/dev/null 2>&1; then
+    ACTION="open"
+  else
+    ACTION="play"
+  fi
 fi
 
 # 网易云 open 文件不清播放队列（实测），open 模式直接升级为 play

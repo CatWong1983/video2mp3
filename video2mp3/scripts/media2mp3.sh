@@ -54,6 +54,12 @@ if [ -n "${EXPECTED:-}" ] && [ "$SIZE" != "$EXPECTED" ]; then
   exit 1
 fi
 
+# 防静音 mp3：抖音 MSE 音视频分离，若抓错成纯视频轨，-vn 会产出无声文件且不报错
+if ! ffprobe -v error -select_streams a -show_entries stream=codec_type -of csv=p=0 "$TMP" 2>/dev/null | grep -q audio; then
+  echo "ERROR: 下载到的媒体不含音频流（可能抓到了纯视频轨），已中止" >&2
+  exit 1
+fi
+
 MP3="$OUTDIR/$SAFE.mp3"
 echo ">> 转码 mp3: $MP3"
 ffmpeg -y -loglevel error -i "$TMP" -vn -codec:a libmp3lame -q:a 2 \
