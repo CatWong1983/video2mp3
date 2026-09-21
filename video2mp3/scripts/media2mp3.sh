@@ -61,5 +61,8 @@ ffmpeg -y -loglevel error -i "$TMP" -vn -codec:a libmp3lame -q:a 2 \
 
 echo ">> MP3: $MP3"
 
+# 生成滚动歌词（同名 .lrc，QQ音乐自动加载；需在打开播放器前完成）
+"$(dirname "$0")/make_lyrics.sh" "$MP3"
+
 # 交给本地音乐 App（默认自动播放，详见 open_in_player.sh 头注释）
 "$(dirname "$0")/open_in_player.sh" "$MP3"

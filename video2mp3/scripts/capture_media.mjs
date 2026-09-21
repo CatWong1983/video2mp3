@@ -79,7 +79,9 @@ async function capture(pw, headless, waitForLoginMs) {
       if (goodUrls.size > 0 || directSrc) break;
       // 验证码/登录/安全限制页：用户在有头窗口里操作后，定期重新导航到目标页
       // （否则用户登录/过验证码后页面仍停在原处，永远轮询不到视频）
-      const badPage = /验证码|安全限制|不见了|登录/.test(info.title);
+      // 注意必须要求 !hasVideo：info.title 是视频自己的标题，
+      // 标题含"登录"等词的正常视频（如「微信登录不了怎么办」）不能误判
+      const badPage = !info.hasVideo && /验证码|安全限制|不见了|登录/.test(info.title);
       if (badPage && Date.now() - lastNav > 15000) {
         try { await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 }); } catch {}
         lastNav = Date.now();

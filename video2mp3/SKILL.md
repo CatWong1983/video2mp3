@@ -10,6 +10,7 @@ description: Use when the user shares a Douyin (抖音) or Xiaohongshu (小红�
 ## 前提
 
 - macOS；`node`(18+) 和 `ffmpeg` 必需，`yt-dlp` 可选（`brew install node ffmpeg yt-dlp`）
+- 歌词：`whisper-cli` 可选（`brew install whisper-cpp`）。装了就会用 whisper 转录生成同名 `.lrc` 滚动歌词（QQ音乐已实测自动加载）；没装则跳过。模型默认 `~/.video2mp3/models/ggml-small.bin`（缺失自动下载，约 460MB），可用 `VIDEO2MP3_WHISPER_MODEL` 指向已有模型；`VIDEO2MP3_LYRICS=0` 关闭
 - 播放器：检测顺序 QQ音乐 → 网易云 → 系统默认。可用 `VIDEO2MP3_PLAYER=<App名>` 覆盖
 - 输出目录默认 `~/Music/video2mp3`，可用 `VIDEO2MP3_DIR` 覆盖。**无论用哪个播放器，转换的 mp3 都会保存在这里**
 
@@ -75,6 +76,7 @@ scripts/media2mp3.sh '<mediaUrl>' '<referer>' '<title>' '<author>'
 | `scripts/capture_media.mjs <视频页URL>` | 浏览器抓包：自举安装 playwright，输出 mediaUrl/title/referer JSON |
 | `scripts/video2mp3.sh <分享文本\|URL> [目录]` | yt-dlp 快路径：解析→下载→mp3 |
 | `scripts/media2mp3.sh <流URL> <referer> <标题> <作者> [目录]` | 抓包路径：curl→mp3 |
+| `scripts/make_lyrics.sh <file.mp3>` | whisper 转录生成同名 .lrc 滚动歌词（前两个脚本自动调用；失败只告警不阻塞） |
 | `scripts/open_in_player.sh <file.mp3>` | 共用收尾：按 VIDEO2MP3_ACTION 激活/播放/仅保存（前两个脚本自动调用） |
 
 ## 常见坑
@@ -89,3 +91,4 @@ scripts/media2mp3.sh '<mediaUrl>' '<referer>' '<title>' '<author>'
 - 抖音页面可能重定向到无关视频：核对 `page.url()` 里的 video ID 与目标一致再取流
 - **小红书笔记 URL 必须带 `xsec_token` 参数**（App 分享链接自带）；裸 `/explore/<id>` 即使已登录也会 404（error_code=300031）
 - 笔记是图文（无 `<video>` 元素）时没有音频可提取，告知用户
+- **歌词是 ASR 转录的**（whisper small），个别错字属正常（尤其唱词含糊/伴奏大声时）；时间轴是 whisper 的分段对齐，非逐字卡拉 OK。用户要更准可换更大模型：`VIDEO2MP3_WHISPER_MODEL=.../ggml-medium.bin`

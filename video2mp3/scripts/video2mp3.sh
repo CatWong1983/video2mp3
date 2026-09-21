@@ -51,5 +51,8 @@ if [ -z "$FILEPATH" ] || [ ! -f "$FILEPATH" ]; then
 fi
 echo ">> MP3: $FILEPATH"
 
+# 生成滚动歌词（同名 .lrc，QQ音乐自动加载；需在打开播放器前完成）
+"$(dirname "$0")/make_lyrics.sh" "$FILEPATH"
+
 # 交给本地音乐 App（默认自动播放，详见 open_in_player.sh 头注释）
 "$(dirname "$0")/open_in_player.sh" "$FILEPATH"

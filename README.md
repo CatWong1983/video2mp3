@@ -22,6 +22,8 @@
           curl 下载（带 Referer）→ ffmpeg 转 mp3（media2mp3.sh）
           写入标题/歌手元数据，文件名「歌手 - 标题.mp3」
                     │
+          whisper 转录生成同名 .lrc 滚动歌词（make_lyrics.sh，可选）
+                    │
           存入 ~/Music/video2mp3 → 交给音乐 App（open_in_player.sh）
 ```
 
@@ -31,12 +33,14 @@
 - **抖音免登录**：无头浏览器直接抓
 - **小红书**：带 `xsec_token` 的分享链接（App 复制出来的自带）未登录通常也能抓到流；抓不到才弹浏览器请用户扫码，登录态持久保存
 - **默认自动播放**：转换完直接在音乐 App 里开播。QQ 音乐会替换当前播放队列，但文件自动导入「本地歌曲」，零手动步骤；在意队列可设 `VIDEO2MP3_ACTION=open`。网易云实测不清队列
+- **滚动歌词**（可选）：装了 `whisper-cli` 就用 whisper 把音频转录成同名 `.lrc`，QQ 音乐播放时自动加载滚动歌词（已实测）；没装则自动跳过
 
 ## 安装
 
 ```bash
 # 依赖
 brew install node ffmpeg yt-dlp
+brew install whisper-cpp   # 可选：滚动歌词（首次生成时自动下载 ~460MB 模型）
 
 # 克隆并链接到各 agent 的技能目录（任选一个或多个）
 git clone https://github.com/CatWong1983/video2mp3.git && cd video2mp3
@@ -76,6 +80,9 @@ ln -s "$PWD/video2mp3" ~/.claude/skills/video2mp3   # Claude Code
 | `VIDEO2MP3_ACTION` | `play`（默认）/ `open` / `none` | play：自动播放（QQ音乐会替换队列但自动入库）；open：只激活窗口+通知，不动队列（QQ音乐此模式不入库，需手动加文件夹）；none：只保存文件 |
 | `VIDEO2MP3_PLAYER` | App 名 | 强制播放器，如 `QQMusic` / `NeteaseMusic`（默认检测 QQ音乐 → 网易云 → 系统默认） |
 | `VIDEO2MP3_DIR` | 路径 | 输出目录（默认 `~/Music/video2mp3`） |
+| `VIDEO2MP3_LYRICS` | `1`（默认）/ `0` | 是否生成 whisper 滚动歌词 |
+| `VIDEO2MP3_WHISPER_MODEL` | 路径 | whisper 模型（默认 `~/.video2mp3/models/ggml-small.bin`，缺失自动下载） |
+| `VIDEO2MP3_WHISPER_LANG` | 语言码 | 识别语言（默认 `zh`） |
 
 ## 项目结构
 
@@ -86,6 +93,7 @@ video2mp3/
     ├── capture_media.mjs       # 浏览器抓包（主路径，自举安装 playwright）
     ├── video2mp3.sh            # yt-dlp 快路径
     ├── media2mp3.sh            # 流地址 → curl 下载 → ffmpeg 转 mp3
+    ├── make_lyrics.sh          # whisper 转录 → 同名 .lrc 滚动歌词（可选）
     └── open_in_player.sh       # 收尾：激活/播放/仅保存（三模式）
 ```
 
@@ -102,6 +110,9 @@ App 复制的分享链接自带 `xsec_token`，未登录通常也能抓到流。
 
 **Q: 图文笔记能转吗？**
 不能，没有音频流。AI 会告知。
+
+**Q: 歌词哪来的？准吗？**
+whisper.cpp 本地语音识别（ASR）转录的，不是网上匹配的原版歌词——所以翻唱、清唱、直播切片都有词。small 模型偶尔有错字，想更准设 `VIDEO2MP3_WHISPER_MODEL` 换 medium/large 模型。
 
 **Q: 支持 Windows / Linux 吗？**
 暂不支持。播放环节依赖 macOS 的 `open` 和 QQ音乐/网易云 Mac 版行为；抓包和转码环节理论可移植。
