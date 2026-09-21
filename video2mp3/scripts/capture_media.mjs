@@ -71,15 +71,18 @@ async function capture(pw, headless, waitForLoginMs) {
       if (/\/media-video-[a-z0-9]+/i.test(u) || /[?&]mime_type=video_mp4/.test(u)) { videoUrls.add(u); return; }
       if (/\.(mp3|m4a|mp4)(\?|$)/.test(u)) weakUrls.add(u);
     });
+    let loadFailed = false;
     try {
       await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 });
     } catch {
+      loadFailed = true;
       console.error('>> 首次加载超时/失败，进入轮询等待（可能是网络抖动或风控）');
     }
     let lastNav = Date.now();
 
     const deadline = Date.now() + waitForLoginMs;
     let lastDiag = 0;
+    let captchaStrikes = 0;
     let info = { title: '', author: '', hasVideo: false, currentSrc: '', paused: true };
     while (Date.now() < deadline) {
       await page.waitForTimeout(3000);
@@ -103,16 +106,25 @@ async function capture(pw, headless, waitForLoginMs) {
         console.error(`>> 页面在播放但未匹配到音频流（疑似未知 MSE 形态）。候选: media=${goodUrls.size} audio=${audioUrls.size} video=${videoUrls.size} weak=${weakUrls.size}`);
         lastDiag = Date.now();
       }
-      // 验证码/登录/安全限制页：用户在有头窗口里操作后，定期重新导航到目标页
-      // （否则用户登录/过验证码后页面仍停在原处，永远轮询不到视频）
-      // 注意必须要求 !hasVideo：info.title 是视频自己的标题，
+      // 抖音"验证码中间页"是纯风控墙（页面不会有任何媒体流），无头轮硬抗没意义：
+      // 连续两轮确认后直接退出，让主流程立刻弹有头窗口请用户过滑块/登录。
+      // 注意只对"验证码"生效——小红书"安全限制"墙页仍可能出流，要留着等满 30 秒
+      const captchaWall = !info.hasVideo && /验证码/.test(info.title);
+      captchaStrikes = captchaWall ? captchaStrikes + 1 : 0;
+      if (headless && captchaStrikes >= 2) {
+        console.error('>> 检测到抖音风控验证码页，不再无头硬抗');
+        break;
+      }
+      // 验证码/登录/安全限制页（或加载失败的错误页）：用户在有头窗口里操作后，
+      // 定期重新导航到目标页（否则用户登录/过验证码后页面仍停在原处，永远轮询不到视频）
+      // 注意墙页判断必须要求 !hasVideo：info.title 是视频自己的标题，
       // 标题含"登录"等词的正常视频（如「微信登录不了怎么办」）不能误判
-      const badPage = !info.hasVideo && /验证码|安全限制|不见了|登录/.test(info.title);
+      const badPage = !info.hasVideo && (loadFailed || /验证码|安全限制|不见了|登录/.test(info.title));
       // 只在用户闲置 30 秒后才重载：扫码/拖滑块途中重载会把二维码/滑块组件重置掉
       let lastActive = 0;
       try { lastActive = await page.evaluate(() => window.__v2mLastActive || 0); } catch {}
       if (badPage && Date.now() - Math.max(lastNav, lastActive) > 30000) {
-        try { await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 }); } catch {}
+        try { await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 }); loadFailed = false; } catch {}
         lastNav = Date.now();
         continue;
       }
